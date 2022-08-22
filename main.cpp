@@ -1,5 +1,6 @@
 #include "crow.h"
 #include "Data.h"
+#include "influxdb-cpp/influxdb.hpp"
 
 struct Middleware {
     std::string message;
@@ -24,7 +25,6 @@ struct Middleware {
 };
 
 int main() {
-
     crow::App<Middleware> app;
     std::mutex mtx;
 
@@ -38,13 +38,17 @@ int main() {
     CROW_ROUTE(app, "/set_data").methods("POST"_method)
             ([](const crow::request &req) {
                 auto x = crow::json::load(req.body);
+                string fan_speed;
+                string fan_color;
+                string pump_speed;
+                string pump_color;
                 if (x["type"] == "fan") {
-                    string fan_speed = x["fan_speed"].s();
-                    string fan_color = x["fan_color"].s();
+                    fan_speed = x["fan_speed"].s();
+                    fan_color = x["fan_color"].s();
                 }
                 else if (x["type"] == "pump"){
-                    string pump_speed = x["pump_speed"].s();
-                    string pump_color = x["pump_color"].s();
+                    pump_speed = x["pump_speed"].s();
+                    pump_color = x["pump_color"].s();
                 }
                 return crow::response(200);
             });
