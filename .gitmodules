@@ -1,0 +1,3 @@
+[submodule "rpi-cluster-web"]
+	path = rpi-cluster-web
+	url = https://github.com/justnik98/rpi-cluster-web.git
