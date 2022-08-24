@@ -1,6 +1,7 @@
-#include "Data.h"
-#include <InfluxDBFactory.h>
+
 #include <crow.h>
+#include <InfluxDBFactory.h>
+#include "Data.h"
 
 struct Middleware {
     std::string message;
