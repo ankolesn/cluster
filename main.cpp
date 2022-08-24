@@ -1,6 +1,6 @@
-#include "crow.h"
 #include "Data.h"
-#include "influxdb-cpp/influxdb.hpp"
+#include <InfluxDBFactory.h>
+#include <crow.h>
 
 struct Middleware {
     std::string message;
@@ -25,6 +25,8 @@ struct Middleware {
 };
 
 int main() {
+    auto db = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=temperature_db");
+    db->createDatabaseIfNotExists();
     crow::App<Middleware> app;
     std::mutex mtx;
 
@@ -36,7 +38,7 @@ int main() {
             });
 
     CROW_ROUTE(app, "/set_data").methods("POST"_method)
-            ([](const crow::request &req) {
+            ([&db](const crow::request &req) {
                 auto x = crow::json::load(req.body);
                 string fan_speed;
                 string fan_color;
@@ -45,10 +47,18 @@ int main() {
                 if (x["type"] == "fan") {
                     fan_speed = x["fan_speed"].s();
                     fan_color = x["fan_color"].s();
+                    db->write(influxdb::Point{"speed"}.addTag("type", "fan").addTag("param", "speed").addField("value",
+                                                                                                               fan_speed));
+                    db->write(influxdb::Point{"color"}.addTag("type", "fan").addTag("param", "color").addField("value",
+                                                                                                               fan_color));
                 }
                 else if (x["type"] == "pump"){
                     pump_speed = x["pump_speed"].s();
                     pump_color = x["pump_color"].s();
+                    db->write(influxdb::Point{"speed"}.addTag("type", "pump").addTag("param", "speed").addField("value",
+                                                                                                               pump_speed));
+                    db->write(influxdb::Point{"color"}.addTag("type", "pump").addTag("param", "color").addField("value",
+                                                                                                               pump_color));
                 }
                 return crow::response(200);
             });
