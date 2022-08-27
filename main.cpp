@@ -27,7 +27,7 @@ struct Middleware {
 int main() {
     auto db = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=cluster");
     db->createDatabaseIfNotExists();
-    crow::App <Middleware> app;
+    crow::App<Middleware> app;
     std::mutex mtx;
 
     CROW_ROUTE(app, "/")
@@ -35,6 +35,24 @@ int main() {
                 crow::mustache::context x;
                 auto page = crow::mustache::load("index.html");
                 return page.render(x);
+            });
+
+    CROW_ROUTE(app, "/login")
+            ([] {
+                crow::mustache::context x;
+                auto page = crow::mustache::load("login.html");
+                return page.render(x);
+            });
+
+    CROW_ROUTE(app, "/auth").methods("POST"_method)
+            ([](const crow::request &req) {
+                auto y = crow::json::load(req.body);
+                if (y["login"] == "root") {
+                    if (y["password"] == "1234pass") {
+                        return crow::response(200);
+                    }
+                }
+                return crow::response(401);
             });
 
     CROW_ROUTE(app, "/set_data").methods("POST"_method)
@@ -84,17 +102,8 @@ int main() {
             });
     CROW_ROUTE(app, "/logout")
             ([]() {
-
                 crow::mustache::context x;
                 auto page = crow::mustache::load("login.html");
-                return page.render(x);
-            });
-
-    CROW_ROUTE(app, "/forgot-password")
-            ([]() {
-
-                crow::mustache::context x;
-                auto page = crow::mustache::load("forgot-password.html");
                 return page.render(x);
             });
 
@@ -108,7 +117,8 @@ int main() {
 
                 db->write(influxdb::Point{"cpu_usage"}.addTag("type", "cpu_usage").addField("value", d.cpu_load(ss)));
                 db->write(influxdb::Point{"cpu_temp"}.addTag("type", "cpu_temp").addField("value", d.cpu_gpu(n[1])));
-                db->write(influxdb::Point{"gpu_usage"}.addTag("type", "gpu_usage").addField("value", d.memory_load(s).second));
+                db->write(influxdb::Point{"gpu_usage"}.addTag("type", "gpu_usage").addField("value",
+                                                                                            d.memory_load(s).second));
                 db->write(influxdb::Point{"gpu_temp"}.addTag("type", "gpu_temp").addField("value", d.cpu_gpu(n[1])));
 
                 int cpu_usage;
