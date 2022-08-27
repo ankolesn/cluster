@@ -1,4 +1,3 @@
-
 #include <crow.h>
 #include <InfluxDBFactory.h>
 #include "Data.h"
@@ -26,9 +25,9 @@ struct Middleware {
 };
 
 int main() {
-    auto db = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=temperature_db");
+    auto db = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=cluster");
     db->createDatabaseIfNotExists();
-    crow::App<Middleware> app;
+    crow::App <Middleware> app;
     std::mutex mtx;
 
     CROW_ROUTE(app, "/")
@@ -52,14 +51,13 @@ int main() {
                                                                                                                fan_speed));
                     db->write(influxdb::Point{"color"}.addTag("type", "fan").addTag("param", "color").addField("value",
                                                                                                                fan_color));
-                }
-                else if (x["type"] == "pump"){
+                } else if (x["type"] == "pump") {
                     pump_speed = x["pump_speed"].s();
                     pump_color = x["pump_color"].s();
                     db->write(influxdb::Point{"speed"}.addTag("type", "pump").addTag("param", "speed").addField("value",
-                                                                                                               pump_speed));
+                                                                                                                pump_speed));
                     db->write(influxdb::Point{"color"}.addTag("type", "pump").addTag("param", "color").addField("value",
-                                                                                                               pump_color));
+                                                                                                                pump_color));
                 }
                 return crow::response(200);
             });
@@ -101,18 +99,52 @@ int main() {
             });
 
     CROW_ROUTE(app, "/get_data")
-            ([]() {
+            ([&db]() {
                 const string n[2] = {"/sys/class/hwmon/hwmon4/temp1_input", // cpu
                                      "/sys/class/hwmon/hwmon7/temp1_input"}; // gpu
                 string ss = "/proc/stat"; // load cpu
                 string s = "/proc/meminfo"; // memory load
                 Data d;
 
+                db->write(influxdb::Point{"cpu_usage"}.addTag("type", "cpu_usage").addField("value", d.cpu_load(ss)));
+                db->write(influxdb::Point{"cpu_temp"}.addTag("type", "cpu_temp").addField("value", d.cpu_gpu(n[1])));
+                db->write(influxdb::Point{"gpu_usage"}.addTag("type", "gpu_usage").addField("value", d.memory_load(s).second));
+                db->write(influxdb::Point{"gpu_temp"}.addTag("type", "gpu_temp").addField("value", d.cpu_gpu(n[1])));
+
+                int cpu_usage;
+                for (auto i: db->query("select last(value) from cpu_usage")) {
+                    string field = i.getFields();
+                    auto pos = field.find('=');
+                    cpu_usage = stoi(field.substr(pos + 1));
+                }
+
+                int cpu_temp;
+                for (auto i: db->query("select last(value) from cpu_temp")) {
+                    string field = i.getFields();
+                    auto pos = field.find('=');
+                    cpu_temp = stoi(field.substr(pos + 1));
+                }
+
+                int gpu_usage;
+                for (auto i: db->query("select last(value) from gpu_usage")) {
+                    string field = i.getFields();
+                    auto pos = field.find('=');
+                    gpu_usage = stoi(field.substr(pos + 1));
+                }
+
+                int gpu_temp;
+                for (auto i: db->query("select last(value) from gpu_temp")) {
+                    string field = i.getFields();
+                    auto pos = field.find('=');
+                    gpu_temp = stoi(field.substr(pos + 1));
+                }
+
+
                 return crow::json::wvalue({
-                                                  {"cpu_temp", d.cpu_gpu(n[0])},
-                                                  {"cpu",      d.cpu_load(ss)},
-                                                  {"gpu_temp", d.cpu_gpu(n[1])},
-                                                  {"gpu",      d.memory_load(s).second}
+                                                  {"cpu_temp", cpu_temp},
+                                                  {"cpu",      cpu_usage},
+                                                  {"gpu_temp", gpu_temp},
+                                                  {"gpu",      gpu_usage}
                                           });
             });
     app.port(18080)
